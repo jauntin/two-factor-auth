@@ -1,0 +1,39 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ${{ github.ref }}
+jobs:
+  Lint:
+    runs-on: arc-runner-set
+    container:
+      image: ghcr.io/jauntin/php-test-image:8.3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - run: composer install
+      - run: "parallel ::: 'vendor/bin/pint --test' 'vendor/bin/phpstan --no-interaction --no-ansi'"
+  test:
+    strategy:
+      fail-fast: true
+      matrix:
+        stability: [prefer-lowest, prefer-stable]
+        laravel: [^10.0]
+    runs-on: arc-runner-set
+    name: L${{ matrix.laravel }} - ${{ matrix.stability }}
+    container:
+      image: ghcr.io/jauntin/php-test-image:8.3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer update --${{ matrix.stability }} --prefer-dist --no-interaction
+      - run: vendor/bin/phpunit --coverage-text
