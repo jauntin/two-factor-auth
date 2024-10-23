@@ -9,6 +9,9 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorMailable;
 
+/**
+ * @codeCoverageIgnore
+ */
 class TwoFactorVerification extends Mailable implements TwoFactorMailable
 {
     use Queueable;

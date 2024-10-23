@@ -6,6 +6,9 @@ use Illuminate\Auth\CreatesUserProviders;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Support\ServiceProvider;
 
+/**
+ * @codeCoverageIgnore
+ */
 final class TwoFactorAuthServiceProvider extends ServiceProvider
 {
     use CreatesUserProviders;

@@ -46,9 +46,11 @@ class Regexifier
             //[.] should not be a random character, but a literal .
             return str_replace('.', '\.', $randomElement);
         }, (string) $regex);
-        // replace \d with number and \w with letter and . with ascii
+        // replace \d with number, \w and \D with letter, \W with special character and . with ascii
         $regex = preg_replace_callback('/\\\w/', [self::class, 'randomLetter'], (string) $regex);
+        $regex = preg_replace_callback('/\\\W/', [self::class, 'randomCharacter'], (string) $regex);
         $regex = preg_replace_callback('/\\\d/', [self::class, 'randomDigit'], (string) $regex);
+        $regex = preg_replace_callback('/\\\D/', [self::class, 'randomLetter'], (string) $regex);
         //replace . with ascii except backslash
         $regex = preg_replace_callback('/(?<!\\\)\./', static function () {
             $chr = self::asciify('*');
@@ -59,11 +61,12 @@ class Regexifier
 
             return $chr;
         }, (string) $regex);
-        // remove remaining single backslashes
+        // remove remaining single backslashes and escaped dots
         $regex = str_replace('\\\\', '[:escaped_backslash:]', (string) $regex);
         $regex = str_replace('\\', '', $regex);
+        $regex = str_replace('[:escaped_backslash:]', '\\', $regex);
 
-        return str_replace('[:escaped_backslash:]', '\\', $regex);
+        return str_replace('[:escaped_dot:]', '.', (string) $regex);
     }
 
     /**
@@ -82,6 +85,20 @@ class Regexifier
     private static function randomDigit(): int
     {
         return mt_rand(0, 9);
+    }
+
+    private static function randomCharacter(): string
+    {
+        $arr = [mt_rand(33, 47), mt_rand(58, 64), mt_rand(91, 94), 96, mt_rand(123, 126)];
+        $chr = chr($arr[array_rand($arr)]);
+        if ($chr === '\\') {
+            return '[:escaped_backslash:]';
+        }
+        if ($chr === '.') {
+            return '[:escaped_dot:]';
+        }
+
+        return $chr;
     }
 
     private static function randomDigitNotNull(): int

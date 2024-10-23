@@ -6,7 +6,6 @@ use Closure;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Mail;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorMailable;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorUserContract;
@@ -19,7 +18,11 @@ use UnexpectedValueException;
 
 class TwoFactorBroker
 {
-    public function __construct(private readonly VerificationCodeRepository $codes, private readonly UserProvider $users, private readonly TwoFactorMailable $mailable) {}
+    public function __construct(
+        private readonly VerificationCodeRepository $codes,
+        private readonly UserProvider $users,
+        private readonly TwoFactorMailable $mailable,
+    ) {}
 
     /**
      * @param  (User&TwoFactorUserContract)|array<string,string>  $user
@@ -53,11 +56,9 @@ class TwoFactorBroker
 
         if ($callback) {
             $callback($user, $verificationCode);
-
-            return;
+        } else {
+            $this->notifyUser($user, $verificationCode, $provider);
         }
-
-        $this->notifyUser($user, $verificationCode, $provider);
     }
 
     /**
@@ -67,7 +68,6 @@ class TwoFactorBroker
      */
     public function getUser(array $credentials): (User&TwoFactorUserContract)|null
     {
-        $credentials = Arr::except($credentials, ['token']);
         $user = $this->users->retrieveByCredentials($credentials);
 
         if ($user && ! $user instanceof User && ! $user instanceof TwoFactorUserContract) {
