@@ -21,7 +21,7 @@ class VerificationCodeRepository
      */
     public function create(User&TwoFactorUserContract $user): string
     {
-        $this->deleteExisting($user);
+        $this->delete($user);
 
         $verificationCode = $this->generateVerificationCode();
 
@@ -32,11 +32,6 @@ class VerificationCodeRepository
         $twoFactorCode->save();
 
         return $verificationCode;
-    }
-
-    protected function deleteExisting(User&TwoFactorUserContract $user): int
-    {
-        return TwoFactorVerificationCode::where('user_id', $user->getAuthIdentifier())->delete();
     }
 
     /**
@@ -84,13 +79,13 @@ class VerificationCodeRepository
     /**
      * Delete a verification code record by user.
      */
-    public function delete(User&TwoFactorUserContract $user): void
+    public function delete(User&TwoFactorUserContract $user): bool
     {
-        $this->deleteExisting($user);
+        return TwoFactorVerificationCode::where('user_id', $user->getAuthIdentifier())->delete();
     }
 
     /**
-     * Delete expired tokens.
+     * Delete expired verification codes.
      */
     public function deleteExpired(): void
     {

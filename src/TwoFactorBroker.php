@@ -95,6 +95,14 @@ class TwoFactorBroker
     }
 
     /**
+     * Delete expired verification codes.
+     */
+    public function deleteExpiredVerificationCodes(): void
+    {
+        $this->codes->deleteExpired();
+    }
+
+    /**
      * Validate the given verification code
      */
     public function verificationCodeExists(User&TwoFactorUserContract $user, string $verificationCode): bool

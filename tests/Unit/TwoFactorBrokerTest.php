@@ -336,4 +336,19 @@ class TwoFactorBrokerTest extends TestCase
         // Call the method that should throw the exception
         $broker->getUser($credentials);
     }
+
+    public function testDeleteExpiredVerificationCodesSuccess()
+    {
+        $codes = Mockery::mock(VerificationCodeRepository::class);
+        $codes->shouldReceive('deleteExpired')->once();
+
+        $mailable = Mockery::mock(TwoFactorMailable::class);
+        $userProvider = Mockery::mock(UserProvider::class);
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+
+        $broker->deleteExpiredVerificationCodes();
+
+        $this->assertTrue(true);  // Ensure the method completes without throwing any exception
+    }
 }
