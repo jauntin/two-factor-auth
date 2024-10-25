@@ -45,7 +45,7 @@ trait HasTwoFactor
         return $this->twoFactorProviders;
     }
 
-    public function getDefaultProviderType(): ?TwoFactorType
+    public function getDefaultTwoFactorProvider(): ?TwoFactorType
     {
         $defaultProvider = config('two-factor-auth.defaults.provider');
 
