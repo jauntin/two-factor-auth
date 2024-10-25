@@ -51,10 +51,9 @@ final class TwoFactorAuthServiceProvider extends ServiceProvider
         });
     }
 
-
     private function registerTwoFactorProviderContext(): void
     {
-        $this->app->bind(TwoFactorMailable::class, $this->app['config']['two-factor-auth.providers.email.mailable']);
+        $this->app->bind(TwoFactorMailable::class, config('two-factor-auth.providers.email.mailable'));
         $this->app->singleton(TwoFactorProviderContext::class, function (Container $container) {
             return new TwoFactorProviderContext(
                 $container->make(VerificationCodeRepository::class),
