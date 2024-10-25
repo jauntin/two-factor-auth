@@ -7,7 +7,6 @@ use Illuminate\Container\Container;
 use Illuminate\Support\ServiceProvider;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorMailable;
 use Jauntin\TwoFactorAuth\Providers\TwoFactorProviderContext;
-use Mockery\VerificationExpectation;
 
 /**
  * @codeCoverageIgnore
@@ -31,7 +30,6 @@ final class TwoFactorAuthServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/config.php', 'two-factor-auth');
         $this->registerVerificationCodeRepository();
-        $this->registerMailable();
         $this->registerTwoFactorProviderContext();
         $this->registerTwoFactorBroker();
     }
@@ -53,34 +51,13 @@ final class TwoFactorAuthServiceProvider extends ServiceProvider
         });
     }
 
-    private function registerMailable(): void
-    {
-        $this->app->bind(TwoFactorMailable::class, function (Container $container) {
-            $mailableClass = $container['config']['two-factor-auth.providers.email.mailable'];
-
-            if (! $mailableClass) {
-                throw new \InvalidArgumentException(
-                    'Mailable class for "email" two-factor auth provider is not defined'
-                );
-            }
-            if (! class_exists($mailableClass)) {
-                throw new \InvalidArgumentException(
-                    sprintf('Class "%s" does not exist', $mailableClass)
-                );
-            }
-            if (! class_implements($mailableClass) || ! in_array(TwoFactorMailable::class, class_implements($mailableClass))) {
-                throw new \InvalidArgumentException(
-                    sprintf('Mailable class should implement "%s" interface', TwoFactorMailable::class)
-                );
-            }
-        });
-    }
 
     private function registerTwoFactorProviderContext(): void
     {
+        $this->app->bind(TwoFactorMailable::class, $this->app['config']['two-factor-auth.providers.email.mailable']);
         $this->app->singleton(TwoFactorProviderContext::class, function (Container $container) {
             return new TwoFactorProviderContext(
-                $container->make(VerificationExpectation::class),
+                $container->make(VerificationCodeRepository::class),
                 $container->make(TwoFactorMailable::class),
             );
         });
