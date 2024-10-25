@@ -61,13 +61,13 @@ class VerificationCodeRepository
     {
         $record = TwoFactorVerificationCode::where('user_id', $user->getAuthIdentifier())->first();
 
-        return $record && $this->tokenRecentlyCreated($record->created_at);
+        return $record && $this->verificationCodeRecentlyCreated($record->created_at);
     }
 
     /**
      * Determine if the verification code record was recently created.
      */
-    protected function tokenRecentlyCreated(Carbon $createdAt): bool
+    protected function verificationCodeRecentlyCreated(Carbon $createdAt): bool
     {
         if ($this->throttle <= 0) {
             return false;

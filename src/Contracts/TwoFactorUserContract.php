@@ -21,7 +21,7 @@ interface TwoFactorUserContract
      */
     public function getTwoFactorProviders(): EloquentCollection;
 
-    public function getDefaultProviderType(): ?TwoFactorType;
+    public function getDefaultTwoFactorProvider(): ?TwoFactorType;
 
     /**
      * @return HasMany<TwoFactorUserProvider>

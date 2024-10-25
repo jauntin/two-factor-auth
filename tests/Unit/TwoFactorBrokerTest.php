@@ -8,18 +8,20 @@ use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
-use Jauntin\TwoFactorAuth\Contracts\TwoFactorMailable;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorUserContract;
 use Jauntin\TwoFactorAuth\Enums\TwoFactorType;
 use Jauntin\TwoFactorAuth\Exception\InvalidCredentialsException;
 use Jauntin\TwoFactorAuth\Exception\InvalidProviderException;
 use Jauntin\TwoFactorAuth\Exception\InvalidVerificationCodeException;
 use Jauntin\TwoFactorAuth\Exception\ThrottledException;
+use Jauntin\TwoFactorAuth\Providers\TwoFactorProviderContext;
+use Jauntin\TwoFactorAuth\Providers\TwoFactorProviderInterface;
 use Jauntin\TwoFactorAuth\TwoFactorBroker;
 use Jauntin\TwoFactorAuth\VerificationCodeRepository;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
-use PHPUnit\Framework\TestCase;
+use Mockery\MockInterface;
+use Orchestra\Testbench\TestCase;
 use UnexpectedValueException;
 
 class TwoFactorBrokerTest extends TestCase
@@ -30,22 +32,22 @@ class TwoFactorBrokerTest extends TestCase
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('hasTwoFactor')->with(TwoFactorType::EMAIL)->andReturn(true);
-        $user->shouldReceive('getDefaultProviderType')->andReturn(TwoFactorType::EMAIL);
+        $user->shouldReceive('getDefaultTwoFactorProvider')->andReturn(TwoFactorType::EMAIL);
         $user->shouldReceive('getEmailForVerification')->andReturn('user@example.com');
 
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('recentlyCreatedCode')->with($user)->andReturn(false);
         $codes->shouldReceive('create')->with($user)->andReturn('123456');
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
-        $mailable->shouldReceive('setVerificationCode')->with('123456')->andReturn($mailable);
-
-        Mail::shouldReceive('to')->with('user@example.com')->andReturnSelf();
-        Mail::shouldReceive('queue')->with($mailable)->once();
+        $context = Mockery::mock(TwoFactorProviderContext::class, function (TwoFactorProviderContext&MockInterface $context) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->expects('sendVerificationCode')->with(Mockery::type(TwoFactorUserContract::class), null);
+            $context->expects('provider')->andReturn($twoFactorProvider);
+        });
 
         $userProvider = Mockery::mock(UserProvider::class);
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $broker->sendVerificationCode($user, TwoFactorType::EMAIL);
     }
@@ -54,26 +56,24 @@ class TwoFactorBrokerTest extends TestCase
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('hasTwoFactor')->with(TwoFactorType::EMAIL)->andReturn(true);
-        $user->shouldReceive('getDefaultProviderType')->andReturn(TwoFactorType::EMAIL);
+        $user->shouldReceive('getDefaultTwoFactorProvider')->andReturn(TwoFactorType::EMAIL);
         $user->shouldReceive('getEmailForVerification')->andReturn('user@example.com');
 
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('recentlyCreatedCode')->with($user)->andReturn(false);
         $codes->shouldReceive('create')->with($user)->andReturn('123456');
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
-        $mailable->shouldReceive('setVerificationCode')->with('123456')->andReturn($mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class, function (TwoFactorProviderContext&MockInterface $context) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->expects('sendVerificationCode')->with(Mockery::type(TwoFactorUserContract::class), Mockery::type(\Closure::class));
+            $context->expects('provider')->andReturn($twoFactorProvider);
+        });
 
         $userProvider = Mockery::mock(UserProvider::class);
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage(sprintf('Sending code %s for use %s', '123456', 'user@example.com'));
-
-        $broker->sendVerificationCode($user, TwoFactorType::EMAIL, function ($user, $verificationCode) {
-            throw new Exception(sprintf('Sending code %s for use %s', $verificationCode, $user->getEmailForVerification()));
-        });
+        $broker->sendVerificationCode($user, TwoFactorType::EMAIL, fn ($user) => $user);
     }
 
     public function testSendVerificationCodeThrottledException()
@@ -86,13 +86,17 @@ class TwoFactorBrokerTest extends TestCase
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('recentlyCreatedCode')->with($user)->andReturn(true);
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
+        $context = Mockery::mock(TwoFactorProviderContext::class, function (TwoFactorProviderContext&MockInterface $context) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->shouldReceive('sendVerificationCode')
+                ->with(Mockery::type(TwoFactorUserContract::class), null)
+                ->andThrow(ThrottledException::class);
+            $context->shouldReceive('provider')->andReturn($twoFactorProvider);
+        });
 
         $userProvider = Mockery::mock(UserProvider::class);
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
-
-        Mail::shouldReceive('to')->never();
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $broker->sendVerificationCode($user, TwoFactorType::EMAIL);
     }
@@ -107,11 +111,12 @@ class TwoFactorBrokerTest extends TestCase
         $userProvider->shouldReceive('retrieveByCredentials')->with($credentials)->andReturnNull();
 
         $codes = Mockery::mock(VerificationCodeRepository::class);
-        $mailable = Mockery::mock(TwoFactorMailable::class);
+        $codes->shouldNotReceive('recentlyCreatedCode');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
 
-        Mail::shouldReceive('to')->never();
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $broker->sendVerificationCode($credentials, TwoFactorType::EMAIL);
     }
@@ -125,11 +130,13 @@ class TwoFactorBrokerTest extends TestCase
 
         $codes = Mockery::mock(VerificationCodeRepository::class);
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
-
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         Mail::shouldReceive('to')->never();
 
@@ -139,6 +146,7 @@ class TwoFactorBrokerTest extends TestCase
     public function testValidateVerificationRequestSuccess()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+        $user->shouldReceive('getDefaultTwoFactorProvider')->andReturn(TwoFactorType::EMAIL);
         $credentials = ['email' => 'user@example.com'];
         $request = Request::create('/verify', 'POST', [
             'credentials' => $credentials,
@@ -152,9 +160,15 @@ class TwoFactorBrokerTest extends TestCase
         $userProvider = Mockery::mock(UserProvider::class);
         $userProvider->shouldReceive('retrieveByCredentials')->with($credentials)->andReturn($user);
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
+        $context = Mockery::mock(TwoFactorProviderContext::class, function (TwoFactorProviderContext&MockInterface $context) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->expects('validateVerificationCode')
+                ->with(Mockery::type(TwoFactorUserContract::class), '123456')
+                ->andReturnTrue();
+            $context->expects('provider')->andReturn($twoFactorProvider);
+        });
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $result = $broker->validateVerificationRequest($request);
 
@@ -165,7 +179,6 @@ class TwoFactorBrokerTest extends TestCase
     {
         $this->expectException(InvalidCredentialsException::class);
 
-        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $credentials = ['email' => 'user@example.com'];
         $request = Request::create('/verify', 'POST', [
             'credentials' => $credentials,
@@ -179,9 +192,37 @@ class TwoFactorBrokerTest extends TestCase
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldNotReceive('exists');
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
+
+        $broker->validateVerificationRequest($request);
+    }
+
+    public function testValidateVerificationRequestInvalidProviderException()
+    {
+        $this->expectException(InvalidProviderException::class);
+        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+        $user->expects('getDefaultTwoFactorProvider')->andReturnNull();
+
+        $credentials = ['email' => 'user@example.com'];
+        $request = Request::create('/verify', 'POST', [
+            'credentials' => $credentials,
+            'verificationCode' => '123456',
+        ]);
+        $request::macro('validate', fn (array $rules, array $params = []) => array_merge($request->all(), $params));
+
+        $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldReceive('retrieveByCredentials')->with($credentials)->andReturn($user);
+
+        $codes = Mockery::mock(VerificationCodeRepository::class);
+        $codes->shouldNotReceive('exists');
+
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $broker->validateVerificationRequest($request);
     }
@@ -191,6 +232,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->expectException(InvalidVerificationCodeException::class);
 
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+        $user->expects('getDefaultTwoFactorProvider')->andReturn(TwoFactorType::EMAIL);
         $credentials = ['email' => 'user@example.com'];
         $request = Request::create('/verify', 'POST', [
             'credentials' => $credentials,
@@ -202,11 +244,17 @@ class TwoFactorBrokerTest extends TestCase
         $userProvider->shouldReceive('retrieveByCredentials')->with($credentials)->andReturn($user);
 
         $codes = Mockery::mock(VerificationCodeRepository::class);
-        $codes->shouldReceive('exists')->with($user, 'wrong_code')->andReturn(false);
+        $codes->shouldNotReceive('exists');
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
+        $context = Mockery::mock(TwoFactorProviderContext::class, function (TwoFactorProviderContext&MockInterface $context) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->expects('validateVerificationCode')
+                ->with(Mockery::type(TwoFactorUserContract::class), 'wrong_code')
+                ->andReturnFalse();
+            $context->expects('provider')->andReturn($twoFactorProvider);
+        });
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $broker->validateVerificationRequest($request);
     }
@@ -218,10 +266,13 @@ class TwoFactorBrokerTest extends TestCase
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('create')->with($user)->andReturn('123456');
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $verificationCode = $broker->createVerificationCode($user);
 
@@ -235,10 +286,13 @@ class TwoFactorBrokerTest extends TestCase
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('create')->with($user)->andThrow(new Exception('Failed to create code'));
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('Failed to create code');
@@ -253,10 +307,13 @@ class TwoFactorBrokerTest extends TestCase
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('delete')->with($user)->once();
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $broker->deleteVerificationCode($user);
 
@@ -270,10 +327,13 @@ class TwoFactorBrokerTest extends TestCase
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('delete')->with($user)->andThrow(new Exception('Failed to delete code'));
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('Failed to delete code');
@@ -281,36 +341,56 @@ class TwoFactorBrokerTest extends TestCase
         $broker->deleteVerificationCode($user);
     }
 
-    public function testVerificationCodeExistsSuccess()
+    public function testValidateVerificationCodeSuccess()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('exists')->with($user, '123456')->andReturn(true);
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->expects('provider')->with(TwoFactorType::EMAIL)->andReturnUsing(function () use ($user) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->expects('validateVerificationCode')
+                ->with($user, '123456')
+                ->andReturnTrue();
 
-        $exists = $broker->verificationCodeExists($user, '123456');
+            return $twoFactorProvider;
+        });
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
+
+        $exists = $broker->validateVerificationCode($user, '123456', TwoFactorType::EMAIL);
 
         $this->assertTrue($exists);
     }
 
-    public function testVerificationCodeDoesNotExist()
+    public function testValidateVerificationCodeFailure()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->shouldReceive('exists')->with($user, 'wrong_code')->andReturn(false);
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->expects('provider')->with(TwoFactorType::EMAIL)->andReturnUsing(function () use ($user) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->expects('validateVerificationCode')
+                ->with($user, 'wrong_code')
+                ->andReturnFalse();
 
-        $exists = $broker->verificationCodeExists($user, 'wrong_code');
+            return $twoFactorProvider;
+        });
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
+
+        $exists = $broker->validateVerificationCode($user, 'wrong_code', TwoFactorType::EMAIL);
 
         $this->assertFalse($exists);
     }
@@ -325,13 +405,16 @@ class TwoFactorBrokerTest extends TestCase
         // Mock a user that implements only Authenticatable but not User or TwoFactorUserContract
         $invalidUser = Mockery::mock(Authenticatable::class);
 
+        $codes = Mockery::mock(VerificationCodeRepository::class);
+        $codes->shouldNotReceive();
+
         $userProvider = Mockery::mock(UserProvider::class);
         $userProvider->shouldReceive('retrieveByCredentials')->with($credentials)->andReturn($invalidUser);
 
-        $codes = Mockery::mock(VerificationCodeRepository::class);
-        $mailable = Mockery::mock(TwoFactorMailable::class);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         // Call the method that should throw the exception
         $broker->getUser($credentials);
@@ -340,15 +423,36 @@ class TwoFactorBrokerTest extends TestCase
     public function testDeleteExpiredVerificationCodesSuccess()
     {
         $codes = Mockery::mock(VerificationCodeRepository::class);
-        $codes->shouldReceive('deleteExpired')->once();
+        $codes->expects('deleteExpired')->once();
 
-        $mailable = Mockery::mock(TwoFactorMailable::class);
         $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
 
-        $broker = new TwoFactorBroker($codes, $userProvider, $mailable);
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $broker->deleteExpiredVerificationCodes();
 
         $this->assertTrue(true);  // Ensure the method completes without throwing any exception
+    }
+
+    public function testHasRecentlyCreatedCode()
+    {
+        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+
+        $codes = Mockery::mock(VerificationCodeRepository::class);
+        $codes->expects('recentlyCreatedCode')->with($user)->once()->andReturnTrue();
+
+        $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
+
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
+
+        $this->assertTrue($broker->hasRecentlyCreatedCode($user));
     }
 }
