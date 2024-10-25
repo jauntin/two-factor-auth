@@ -455,4 +455,22 @@ class TwoFactorBrokerTest extends TestCase
 
         $this->assertTrue($broker->hasRecentlyCreatedCode($user));
     }
+
+    public function testExistsNotExpired()
+    {
+        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+
+        $codes = Mockery::mock(VerificationCodeRepository::class);
+        $codes->expects('existsNotExpired')->with($user)->once()->andReturnTrue();
+
+        $userProvider = Mockery::mock(UserProvider::class);
+        $userProvider->shouldNotReceive('retrieveByCredentials');
+
+        $context = Mockery::mock(TwoFactorProviderContext::class);
+        $context->shouldNotReceive('provider');
+
+        $broker = new TwoFactorBroker($codes, $userProvider, $context);
+
+        $this->assertTrue($broker->existsNotExpired($user));
+    }
 }

@@ -121,6 +121,14 @@ class TwoFactorBroker
     }
 
     /**
+     * Determine if a verification code record exists for user and is not expired.
+     */
+    public function existsNotExpired(User&TwoFactorUserContract $user): bool
+    {
+        return $this->codes->existsNotExpired($user);
+    }
+
+    /**
      * Validate a password reset for the given credentials.
      *
      * @throws InvalidCredentialsException|InvalidVerificationCodeException|InvalidProviderException

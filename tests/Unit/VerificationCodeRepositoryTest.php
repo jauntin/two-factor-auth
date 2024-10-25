@@ -101,6 +101,31 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertTrue($recentlyCreated);
     }
 
+    public function testExistsNotExpired()
+    {
+        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+
+        $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
+        $twoFactorCode->created_at = Carbon::now()->subSeconds(10);
+        $twoFactorCode->code = hash_hmac('sha256', '123456', 'test_hash_key');
+        $twoFactorCode->shouldReceive('where')
+            ->with('user_id', 1)
+            ->andReturnSelf();
+        $twoFactorCode->shouldReceive('where')
+            ->with('created_at', '>=', Mockery::type(Carbon::class))
+            ->andReturnSelf();
+        $twoFactorCode->shouldReceive('exists')
+            ->once()
+            ->andReturnTrue();
+
+        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$', 5, 30);
+
+        $existsNotExpired = $repository->existsNotExpired($user);
+
+        $this->assertTrue($existsNotExpired);
+    }
+
     public function testDeleteExpiredVerificationCodesSuccess()
     {
         $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');

@@ -47,6 +47,18 @@ class VerificationCodeRepository
     }
 
     /**
+     * Determine if a verification code record exists for user and is not expired.
+     */
+    public function existsNotExpired(User&TwoFactorUserContract $user): bool
+    {
+        $expiredAt = Carbon::now()->subMinutes($this->expire);
+
+        return TwoFactorVerificationCode::where('user_id', $user->getAuthIdentifier())
+            ->where('created_at', '>=', $expiredAt)
+            ->exists();
+    }
+
+    /**
      * Determine if the verification code has expired.
      */
     protected function codeExpired(Carbon $createdAt): bool
