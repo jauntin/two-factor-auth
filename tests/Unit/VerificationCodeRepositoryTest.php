@@ -2,8 +2,10 @@
 
 namespace Tests\Unit;
 
+use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorUserContract;
 use Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode;
 use Jauntin\TwoFactorAuth\VerificationCodeRepository;
@@ -23,9 +25,11 @@ class VerificationCodeRepositoryTest extends TestCase
         // Mock the TwoFactorVerificationCode model to avoid database calls
         $twoFactorCode = Mockery::mock('overload:'.TwoFactorVerificationCode::class);
         $twoFactorCode->shouldReceive('save')->once();
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldReceive('make')->with('123456')->andReturn(Str::random());
 
         // Mock deleteExisting to ensure it's called
-        $repository = Mockery::mock(VerificationCodeRepository::class, ['test_hash_key', '^[0-9]{6}$', 5, 30])->makePartial();
+        $repository = Mockery::mock(VerificationCodeRepository::class, [$hasher, '^[0-9]{6}$', 5, 30])->makePartial();
         $repository->shouldAllowMockingProtectedMethods();
         $repository->shouldReceive('delete')->with($user)->once();
 
@@ -44,15 +48,17 @@ class VerificationCodeRepositoryTest extends TestCase
 
         $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
         $twoFactorCode->created_at = Carbon::now()->subMinute();
-        $twoFactorCode->code = hash_hmac('sha256', '123456', 'test_hash_key');
+        $twoFactorCode->code = $code = Str::random();
         $twoFactorCode->shouldReceive('where')
             ->with('user_id', 1)
             ->andReturnSelf();
         $twoFactorCode->shouldReceive('first')
             ->once()
             ->andReturnSelf();
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldReceive('check')->with('123456', $code)->andReturnTrue();
 
-        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$');
+        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
 
         $exists = $repository->exists($user, '123456');
 
@@ -71,8 +77,10 @@ class VerificationCodeRepositoryTest extends TestCase
         $twoFactorCode->shouldReceive('first')
             ->once()
             ->andReturnNull();
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldNotReceive('check');
 
-        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$');
+        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
 
         $exists = $repository->exists($user, '123456');
 
@@ -93,8 +101,10 @@ class VerificationCodeRepositoryTest extends TestCase
         $twoFactorCode->shouldReceive('first')
             ->once()
             ->andReturnSelf();
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldNotReceive('check');
 
-        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$', 5, 30);
+        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$', 5, 30);
 
         $recentlyCreated = $repository->recentlyCreatedCode($user);
 
@@ -118,8 +128,10 @@ class VerificationCodeRepositoryTest extends TestCase
         $twoFactorCode->shouldReceive('exists')
             ->once()
             ->andReturnTrue();
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldNotReceive('check');
 
-        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$', 5, 30);
+        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$', 5, 30);
 
         $existsNotExpired = $repository->existsNotExpired($user);
 
@@ -135,8 +147,10 @@ class VerificationCodeRepositoryTest extends TestCase
         $twoFactorCode->shouldReceive('delete')
             ->once()
             ->andReturnTrue();
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldNotReceive('check');
 
-        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$', 5, 30);
+        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$', 5, 30);
 
         $repository->deleteExpired();
 
@@ -155,8 +169,10 @@ class VerificationCodeRepositoryTest extends TestCase
         $twoFactorCode->shouldReceive('delete')
             ->once()
             ->andReturnTrue();
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldNotReceive('check');
 
-        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$');
+        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
         $deleted = $repository->delete($user);
 
         $this->assertEquals(1, $deleted);
@@ -164,7 +180,9 @@ class VerificationCodeRepositoryTest extends TestCase
 
     public function testGenerateVerificationCode()
     {
-        $repository = new VerificationCodeRepository('test_hash_key', '^[0-9]{6}$');
+        $hasher = Mockery::mock(Hasher::class);
+        $hasher->shouldNotReceive('check');
+        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
 
         $verificationCode = $repository->generateVerificationCode();
 

@@ -2,6 +2,7 @@
 
 namespace Jauntin\TwoFactorAuth;
 
+use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Carbon;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorUserContract;
@@ -10,7 +11,7 @@ use Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode;
 class VerificationCodeRepository
 {
     public function __construct(
-        private readonly string $hashKey,
+        private readonly Hasher $hasher,
         private readonly string $pattern,
         private readonly int $expire = 5,
         private readonly int $throttle = 30,
@@ -27,7 +28,7 @@ class VerificationCodeRepository
 
         $twoFactorCode = new TwoFactorVerificationCode;
         $twoFactorCode->user_id = $user->getAuthIdentifier();
-        $twoFactorCode->code = hash_hmac('sha256', $verificationCode, $this->hashKey);
+        $twoFactorCode->code = $this->hasher->make($verificationCode);
         $twoFactorCode->created_at = new Carbon;
         $twoFactorCode->save();
 
@@ -43,7 +44,7 @@ class VerificationCodeRepository
 
         return $record &&
             ! $this->codeExpired($record->created_at) &&
-            hash_hmac('sha256', $code, $this->hashKey) === $record->code;
+            $this->hasher->check($code, $record->code);
     }
 
     /**

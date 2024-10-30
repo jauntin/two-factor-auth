@@ -4,6 +4,7 @@ namespace Jauntin\TwoFactorAuth;
 
 use Illuminate\Auth\CreatesUserProviders;
 use Illuminate\Container\Container;
+use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Support\ServiceProvider;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorMailable;
 use Jauntin\TwoFactorAuth\Providers\TwoFactorProviderContext;
@@ -37,13 +38,8 @@ final class TwoFactorAuthServiceProvider extends ServiceProvider
     private function registerVerificationCodeRepository(): void
     {
         $this->app->singleton(VerificationCodeRepository::class, function (Container $container) {
-            $key = $container['config']['app.key'];
-            if (str_starts_with($key, 'base64:')) {
-                $key = base64_decode(substr($key, 7));
-            }
-
             return new VerificationCodeRepository(
-                $key,
+                $container->make(Hasher::class),
                 $container['config']['two-factor-auth.pattern'],
                 $container['config']['two-factor-auth.expire'],
                 $container['config']['two-factor-auth.throttle'],

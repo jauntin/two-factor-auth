@@ -20,7 +20,7 @@ return new class extends Migration
 
         Schema::create('two_factor_verification_codes', function (Blueprint $table) {
             $table->foreignId('user_id');
-            $table->string('code')->unique();
+            $table->string('code');
             $table->timestamp('created_at');
             $table->foreign('user_id')->references('id')->on('users');
         });
