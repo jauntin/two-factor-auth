@@ -30,7 +30,7 @@ trait HasTwoFactor
     public function addTwoFactor(array $providers): void
     {
         foreach ($providers as $provider) {
-            $this->twoFactorProviders()->create([
+            $this->twoFactorProviders()->firstOrCreate([
                 'user_id' => $this->getAuthIdentifier(),
                 'provider' => $provider,
             ]);

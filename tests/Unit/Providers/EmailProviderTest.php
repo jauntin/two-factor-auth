@@ -31,7 +31,7 @@ class EmailProviderTest extends TestCase
         $this->user->shouldReceive('getEmailForVerification')->andReturn('test@example.com');
     }
 
-    public function testSendVerificationCodeSuccessfully()
+    public function test_send_verification_code_successfully()
     {
         $this->codes->expects('recentlyCreatedCode')->with($this->user)->andReturnFalse()->once();
         $this->codes->shouldReceive('create')->with($this->user)->andReturn('123456');
@@ -43,7 +43,7 @@ class EmailProviderTest extends TestCase
         });
     }
 
-    public function testSendVerificationCodeWithThrottleException()
+    public function test_send_verification_code_with_throttle_exception()
     {
         $this->expectException(ThrottledException::class);
         $this->expectExceptionMessage('Too many verification code requests');
@@ -53,7 +53,7 @@ class EmailProviderTest extends TestCase
         $this->provider->sendVerificationCode($this->user);
     }
 
-    public function testSendVerificationCodeWithCallback()
+    public function test_send_verification_code_with_callback()
     {
         $this->codes->shouldReceive('recentlyCreatedCode')->with($this->user)->andReturn(false);
         $this->codes->shouldReceive('create')->with($this->user)->andReturn('123456');
@@ -68,7 +68,7 @@ class EmailProviderTest extends TestCase
         Mail::assertNotQueued(TwoFactorMailable::class);
     }
 
-    public function testValidateVerificationCodeSuccessfully()
+    public function test_validate_verification_code_successfully()
     {
         $this->codes->shouldReceive('exists')->with($this->user, '123456')->andReturn(true);
 
@@ -77,7 +77,7 @@ class EmailProviderTest extends TestCase
         $this->assertTrue($isValid);
     }
 
-    public function testValidateVerificationCodeFails()
+    public function test_validate_verification_code_fails()
     {
         $this->codes->shouldReceive('exists')->with($this->user, 'wrong_code')->andReturn(false);
 

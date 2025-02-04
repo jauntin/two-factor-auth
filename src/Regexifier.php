@@ -43,7 +43,7 @@ class Regexifier
             $match = (string) preg_replace('/\\\(?!\\\)/', '', $matches[1]);
             $randomElement = self::randomElement(str_split($match));
 
-            //[.] should not be a random character, but a literal .
+            // [.] should not be a random character, but a literal .
             return str_replace('.', '\.', $randomElement);
         }, (string) $regex);
         // replace \d with number, \w and \D with letter, \W with special character and . with ascii
@@ -51,7 +51,7 @@ class Regexifier
         $regex = preg_replace_callback('/\\\W/', [self::class, 'randomCharacter'], (string) $regex);
         $regex = preg_replace_callback('/\\\d/', [self::class, 'randomDigit'], (string) $regex);
         $regex = preg_replace_callback('/\\\D/', [self::class, 'randomLetter'], (string) $regex);
-        //replace . with ascii except backslash
+        // replace . with ascii except backslash
         $regex = preg_replace_callback('/(?<!\\\)\./', static function () {
             $chr = self::asciify('*');
 

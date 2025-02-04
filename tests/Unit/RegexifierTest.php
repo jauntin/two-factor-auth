@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 class RegexifierTest extends TestCase
 {
     #[DataProvider('regularExpressions')]
-    public function testRegexify(string $regex): void
+    public function test_regexify(string $regex): void
     {
         $string = Regexifier::regexify($regex);
         $this->assertMatchesRegularExpression($regex, $string);

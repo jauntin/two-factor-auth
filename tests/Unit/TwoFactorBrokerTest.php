@@ -28,7 +28,7 @@ class TwoFactorBrokerTest extends TestCase
 {
     use MockeryPHPUnitIntegration;
 
-    public function testSendVerificationCodeSuccess()
+    public function test_send_verification_code_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('hasTwoFactor')->with(TwoFactorType::EMAIL)->andReturn(true);
@@ -52,7 +52,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->sendVerificationCode($user, TwoFactorType::EMAIL);
     }
 
-    public function testSendVerificationCodeSuccessWithCallback()
+    public function test_send_verification_code_success_with_callback()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('hasTwoFactor')->with(TwoFactorType::EMAIL)->andReturn(true);
@@ -76,7 +76,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->sendVerificationCode($user, TwoFactorType::EMAIL, fn ($user) => $user);
     }
 
-    public function testSendVerificationCodeThrottledException()
+    public function test_send_verification_code_throttled_exception()
     {
         $this->expectException(ThrottledException::class);
 
@@ -101,7 +101,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->sendVerificationCode($user, TwoFactorType::EMAIL);
     }
 
-    public function testSendVerificationCodeInvalidCredentialsException()
+    public function test_send_verification_code_invalid_credentials_exception()
     {
         $this->expectException(InvalidCredentialsException::class);
 
@@ -121,7 +121,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->sendVerificationCode($credentials, TwoFactorType::EMAIL);
     }
 
-    public function testSendVerificationCodeInvalidProviderException()
+    public function test_send_verification_code_invalid_provider_exception()
     {
         $this->expectException(InvalidProviderException::class);
 
@@ -143,7 +143,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->sendVerificationCode($user, TwoFactorType::SMS);
     }
 
-    public function testValidateVerificationRequestSuccess()
+    public function test_validate_verification_request_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('getDefaultTwoFactorProvider')->andReturn(TwoFactorType::EMAIL);
@@ -175,7 +175,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->assertSame($user, $result);
     }
 
-    public function testValidateVerificationRequestInvalidCredentialsException()
+    public function test_validate_verification_request_invalid_credentials_exception()
     {
         $this->expectException(InvalidCredentialsException::class);
 
@@ -200,7 +200,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->validateVerificationRequest($request);
     }
 
-    public function testValidateVerificationRequestInvalidProviderException()
+    public function test_validate_verification_request_invalid_provider_exception()
     {
         $this->expectException(InvalidProviderException::class);
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
@@ -227,7 +227,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->validateVerificationRequest($request);
     }
 
-    public function testValidateVerificationRequestInvalidVerificationCodeException()
+    public function test_validate_verification_request_invalid_verification_code_exception()
     {
         $this->expectException(InvalidVerificationCodeException::class);
 
@@ -259,7 +259,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->validateVerificationRequest($request);
     }
 
-    public function testCreateVerificationCodeSuccess()
+    public function test_create_verification_code_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
@@ -279,7 +279,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->assertEquals('123456', $verificationCode);
     }
 
-    public function testCreateVerificationCodeFailure()
+    public function test_create_verification_code_failure()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
@@ -300,7 +300,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->createVerificationCode($user);
     }
 
-    public function testDeleteVerificationCodeSuccess()
+    public function test_delete_verification_code_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
@@ -320,7 +320,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->assertTrue(true);  // Since no exception is expected, success implies it worked
     }
 
-    public function testDeleteVerificationCodeFailure()
+    public function test_delete_verification_code_failure()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
@@ -341,7 +341,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->deleteVerificationCode($user);
     }
 
-    public function testValidateVerificationCodeSuccess()
+    public function test_validate_verification_code_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
@@ -368,7 +368,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->assertTrue($exists);
     }
 
-    public function testValidateVerificationCodeFailure()
+    public function test_validate_verification_code_failure()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
@@ -395,7 +395,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->assertFalse($exists);
     }
 
-    public function testGetUserThrowsExceptionForInvalidUser()
+    public function test_get_user_throws_exception_for_invalid_user()
     {
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessage('User must implement TwoFactorUserContract interface.');
@@ -420,7 +420,7 @@ class TwoFactorBrokerTest extends TestCase
         $broker->getUser($credentials);
     }
 
-    public function testDeleteExpiredVerificationCodesSuccess()
+    public function test_delete_expired_verification_codes_success()
     {
         $codes = Mockery::mock(VerificationCodeRepository::class);
         $codes->expects('deleteExpired')->once();
@@ -438,7 +438,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->assertTrue(true);  // Ensure the method completes without throwing any exception
     }
 
-    public function testHasRecentlyCreatedCode()
+    public function test_has_recently_created_code()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 
@@ -456,7 +456,7 @@ class TwoFactorBrokerTest extends TestCase
         $this->assertTrue($broker->hasRecentlyCreatedCode($user));
     }
 
-    public function testExistsNotExpired()
+    public function test_exists_not_expired()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
 

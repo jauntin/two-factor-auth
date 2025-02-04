@@ -26,14 +26,14 @@ class TwoFactorProviderContextTest extends TestCase
         $this->context = new TwoFactorProviderContext($this->codes, $this->mailable);
     }
 
-    public function testProviderReturnsEmailProvider()
+    public function test_provider_returns_email_provider()
     {
         $provider = $this->context->provider(TwoFactorType::EMAIL);
 
         $this->assertInstanceOf(EmailProvider::class, $provider);
     }
 
-    public function testProviderThrowsInvalidProviderException()
+    public function test_provider_throws_invalid_provider_exception()
     {
         $this->expectException(InvalidProviderException::class);
         $this->expectExceptionMessage('Two-factor provider "sms" is not supported.');

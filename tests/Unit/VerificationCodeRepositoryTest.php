@@ -17,7 +17,7 @@ class VerificationCodeRepositoryTest extends TestCase
 {
     use MockeryPHPUnitIntegration;
 
-    public function testCreateVerificationCodeSuccess()
+    public function test_create_verification_code_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
@@ -41,7 +41,7 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertEquals('123456', $verificationCode);
     }
 
-    public function testVerificationCodeExistsSuccess()
+    public function test_verification_code_exists_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
@@ -65,7 +65,7 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertTrue($exists);
     }
 
-    public function testVerificationCodeDoesNotExist()
+    public function test_verification_code_does_not_exist()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
@@ -87,7 +87,7 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertFalse($exists);
     }
 
-    public function testRecentlyCreatedCodeSuccess()
+    public function test_recently_created_code_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
@@ -111,7 +111,7 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertTrue($recentlyCreated);
     }
 
-    public function testExistsNotExpired()
+    public function test_exists_not_expired()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
@@ -138,7 +138,7 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertTrue($existsNotExpired);
     }
 
-    public function testDeleteExpiredVerificationCodesSuccess()
+    public function test_delete_expired_verification_codes_success()
     {
         $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
         $twoFactorCode->shouldReceive('where')
@@ -157,7 +157,7 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertTrue(true);  // If no exceptions occur, the test is successful
     }
 
-    public function testDeleteSuccess()
+    public function test_delete_success()
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn(1);
@@ -178,7 +178,7 @@ class VerificationCodeRepositoryTest extends TestCase
         $this->assertEquals(1, $deleted);
     }
 
-    public function testGenerateVerificationCode()
+    public function test_generate_verification_code()
     {
         $hasher = Mockery::mock(Hasher::class);
         $hasher->shouldNotReceive('check');
