@@ -12,6 +12,8 @@ use Jauntin\TwoFactorAuth\Models\TwoFactorUserProvider;
  * @mixin User
  *
  * @property EloquentCollection<int,TwoFactorUserProvider> $twoFactorProviders
+ *
+ * @phpstan-ignore trait.unused
  */
 trait HasTwoFactor
 {

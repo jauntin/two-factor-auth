@@ -24,7 +24,7 @@ jobs:
       fail-fast: true
       matrix:
         stability: [prefer-lowest, prefer-stable]
-        laravel: [^10.0]
+        laravel: [^10.0,^11.0,^12.0]
     runs-on: arc-runner-set
     name: L${{ matrix.laravel }} - ${{ matrix.stability }}
     container:

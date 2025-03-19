@@ -24,7 +24,9 @@ interface TwoFactorUserContract
     public function getDefaultTwoFactorProvider(): ?TwoFactorType;
 
     /**
-     * @return HasMany<TwoFactorUserProvider>
+     * @return HasMany<TwoFactorUserProvider,self>
+     *
+     * @phpstan-ignore generics.notSubtype
      */
     public function twoFactorProviders(): HasMany;
 }
