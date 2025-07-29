@@ -11,29 +11,34 @@ on:
 jobs:
   Lint:
     runs-on: arc-runner-set
-    container:
-      image: ghcr.io/jauntin/php-test-image:8.3
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - run: composer install
-      - run: "parallel ::: 'vendor/bin/pint --test' 'vendor/bin/phpstan --no-interaction --no-ansi'"
+      - uses: addnab/docker-run-action@v3
+        with:
+          image: ghcr.io/jauntin/php-test-image:8.3
+          options: -v ${{ github.workspace }}:/var/www/html
+          run: |
+            composer install &&
+            parallel ::: 'vendor/bin/pint --test' 'vendor/bin/phpstan --no-interaction --no-ansi'
   test:
     strategy:
       fail-fast: true
       matrix:
         stability: [prefer-lowest, prefer-stable]
-        laravel: [^10.0,^11.0,^12.0]
+        laravel: [^12.0]
     runs-on: arc-runner-set
     name: L${{ matrix.laravel }} - ${{ matrix.stability }}
-    container:
-      image: ghcr.io/jauntin/php-test-image:8.3
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
-          composer update --${{ matrix.stability }} --prefer-dist --no-interaction
-      - run: vendor/bin/phpunit --coverage-text
+      - uses: addnab/docker-run-action@v3
+        with:
+          image: ghcr.io/jauntin/php-test-image:8.3
+          options: -v ${{ github.workspace }}:/var/www/html
+          run: |
+            composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update &&
+            composer update --${{ matrix.stability }} --prefer-dist --no-interaction &&
+            vendor/bin/phpunit --coverage-text

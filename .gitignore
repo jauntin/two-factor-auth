@@ -7,3 +7,4 @@ composer.lock
 .phpunit.result.cache
 .pint.cache
 /coverage
+semicolon_delimited_script
