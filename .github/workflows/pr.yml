@@ -7,13 +7,15 @@ jobs:
     runs-on: arc-runner-set
     outputs:
       ref: ${{ steps.commit.outputs.commit_hash || github.ref }}
-    container:
-      image: ghcr.io/jauntin/php-test-image:8.3
-      options: --user 1001
     steps:
       - uses: actions/checkout@v4
-      - run: composer install
-      - run: vendor/bin/pint
+      - uses: addnab/docker-run-action@v3
+        with:
+          image: ghcr.io/jauntin/php-test-image:8.3
+          options: -v ${{ github.workspace }}:/var/www/html
+          run: |
+            composer install &&
+            vendor/bin/pint
       - id: commit
         uses: stefanzweifel/git-auto-commit-action@v5
   Test:
