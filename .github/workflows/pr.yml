@@ -9,7 +9,7 @@ jobs:
       ref: ${{ steps.commit.outputs.commit_hash || github.ref }}
     steps:
       - uses: actions/checkout@v4
-      - uses: addnab/docker-run-action@v3
+      - uses: jauntin/actions/docker-run-action@v1
         with:
           image: ghcr.io/jauntin/php-test-image:8.3
           options: -v ${{ github.workspace }}:/var/www/html
