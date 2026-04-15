@@ -8,7 +8,7 @@ jobs:
     outputs:
       ref: ${{ steps.commit.outputs.commit_hash || github.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: jauntin/actions/docker-run-action@v1
         with:
           image: ghcr.io/jauntin/php-test-image:8.3
@@ -17,7 +17,7 @@ jobs:
             composer install &&
             vendor/bin/pint
       - id: commit
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
   Test:
     needs: [Fix]
     uses: ./.github/workflows/test.yml
