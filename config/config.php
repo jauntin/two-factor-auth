@@ -1,5 +1,7 @@
 <?php
 
+use Jauntin\TwoFactorAuth\Notification\TwoFactorVerification;
+
 return [
     'defaults' => [
         'provider' => 'email', // default provider to use
@@ -9,7 +11,7 @@ return [
     'pattern' => '[0-9]{6}', // regex pattern of generated verification code
     'providers' => [
         'email' => [
-            'mailable' => \Jauntin\TwoFactorAuth\Notification\TwoFactorVerification::class, // Class name of the mailable to send for verification
+            'mailable' => TwoFactorVerification::class, // Class name of the mailable to send for verification
         ],
     ],
 ];
