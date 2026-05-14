@@ -5,6 +5,8 @@ on:
 jobs:
   Fix:
     runs-on: arc-runner-set
+    permissions:
+      contents: write
     outputs:
       ref: ${{ steps.commit.outputs.commit_hash || github.ref }}
     steps:
