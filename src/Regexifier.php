@@ -74,23 +74,28 @@ class Regexifier
      */
     private static function randomElement(array $elements): mixed
     {
-        return $elements[array_rand($elements)];
+        $keys = array_keys($elements);
+        if ($keys === []) {
+            throw new \ValueError('Cannot pick a random element from an empty array');
+        }
+
+        return $elements[$keys[random_int(0, count($keys) - 1)]];
     }
 
     private static function randomLetter(): string
     {
-        return chr(mt_rand(97, 122));
+        return chr(random_int(97, 122));
     }
 
     private static function randomDigit(): int
     {
-        return mt_rand(0, 9);
+        return random_int(0, 9);
     }
 
     private static function randomCharacter(): string
     {
-        $arr = [mt_rand(33, 47), mt_rand(58, 64), mt_rand(91, 94), 96, mt_rand(123, 126)];
-        $chr = chr($arr[array_rand($arr)]);
+        $arr = [random_int(33, 47), random_int(58, 64), random_int(91, 94), 96, random_int(123, 126)];
+        $chr = chr(self::randomElement($arr));
         if ($chr === '\\') {
             return '[:escaped_backslash:]';
         }
@@ -103,11 +108,11 @@ class Regexifier
 
     private static function randomDigitNotNull(): int
     {
-        return mt_rand(1, 9);
+        return random_int(1, 9);
     }
 
     private static function asciify(string $string = '****'): string
     {
-        return (string) preg_replace('/\*/u', chr(mt_rand(33, 126)), $string);
+        return (string) preg_replace('/\*/u', chr(random_int(33, 126)), $string);
     }
 }
