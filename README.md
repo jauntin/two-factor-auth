@@ -50,6 +50,8 @@ return [
     'expire' => 5, // code expiration time in minutes
     'throttle' => 30, // time in seconds before user can request another code
     'pattern' => '[0-9]{6}', // regex pattern of generated verification code
+    'max_attempts' => 10, // wrong attempts allowed per code; the last one deletes it (values below 1 act as 1)
+    'credential_keys' => ['email'], // credentials keys allowed to look up the user
     'providers' => [
         'email' => [
             'mailable' => \Jauntin\TwoFactorAuth\Notification\TwoFactorVerification::class, // Class name of the mailable to send for verification
@@ -163,12 +165,12 @@ if ($user->hasTwoFactor($provider ?? null)) {
 ### Verifying code
 
 Almost all operations with two-factor auth is done with `Jauntin\TwoFactorAuth\TwoFactorBroker`
-To verify two-factor code you can use `$twoFactorBroker->verificationCodeExists()` method
+To verify two-factor code you can use `$twoFactorBroker->validateVerificationCode()` method
 ```php
 $user = \Illuminate\Foundation\Auth\User::find(1);
 $broker = app(\Jauntin\TwoFactorAuth\TwoFactorBroker::class);
 
-$broker->verificationCodeExists($user, '123456');
+$broker->validateVerificationCode($user, '123456');
 ```
 Or you can use `$twoFactorBroker->validateVerificationRequest()` method to validate the request itself if its body is in given format
 ```json
@@ -190,7 +192,15 @@ class AuthController extends BaseController
 }
 ```
 
-Both methods will ensure that verification code is valid and not expired
+Both methods will ensure that verification code is valid and not expired.
+
+`credentials` accepts only the keys listed in `credential_keys`, with string values. Any other
+key or value fails validation (HTTP 422). `getUser()` ignores keys outside the list.
+
+Each wrong code counts as an attempt. The attempt that reaches `max_attempts` (default 10)
+deletes the code; values below 1 act as 1. The right code doesn't reset the count, and the
+caller still deletes the code after a successful check (see below). Once the code is deleted,
+`existsNotExpired()` returns `false`, so the user has to start the login again.
 
 ### Deleting used code
 
@@ -202,6 +212,17 @@ $broker = app(\Jauntin\TwoFactorAuth\TwoFactorBroker::class);
 
 $this->twoFactorBroker->deleteVerificationCode($user);
 ```
+
+## Upgrading to 1.4.0
+
+- A new package migration adds `attempts` to `two_factor_verification_codes`. It runs with the
+  normal `php artisan migrate`.
+- The new `max_attempts` and `credential_keys` settings take their package defaults; a published
+  `two-factor-auth.php` doesn't need to change.
+- After 10 wrong codes the code is deleted. A resend that requires `existsNotExpired()` then
+  fails, and the user restarts the login.
+- A verification request with a credential key other than `email` (or a non-string value) now
+  gets HTTP 422, and `getUser()` ignores such keys.
 
 ## Development
 
@@ -235,12 +256,17 @@ default. Released migrations never change.
 - `two_factor_verification_codes` has no primary key. There is one row per
   `user_id`, because `create()` deletes the old row before inserting. Queries
   target rows by `user_id`.
+- Wrong guesses are counted only in `VerificationCodeRepository::exists()`. A hash
+  match never touches `attempts`. A row at the limit counts as absent for
+  `exists()` and `existsNotExpired()`.
+- Only `credential_keys`, with string values, reach
+  `UserProvider::retrieveByCredentials()`.
 
 ### Tests
 
-- The unit suites extend PHPUnit's `TestCase` and mock Eloquent models with
-  Mockery `overload:`/`alias:`. Those mocks replace the class for the whole PHP
-  process, so tests using real models run in a separate process or suite.
-- Database-backed tests use Orchestra Testbench with in-memory SQLite, register
-  `TwoFactorAuthServiceProvider`, and run the package migrations (same setup as
-  `jauntin/saving-quote`'s `tests/SavingQuoteTestCase.php`).
+- Repository tests extend `Tests\DatabaseTestCase`: Orchestra Testbench with
+  in-memory SQLite, `TwoFactorAuthServiceProvider` registered, package migrations
+  run (same setup as `jauntin/saving-quote`'s `tests/SavingQuoteTestCase.php`).
+- Don't mock Eloquent models with Mockery `alias:`/`overload:`. Those mocks
+  replace the class for the whole PHP process and break every real-model test in
+  the same run.
