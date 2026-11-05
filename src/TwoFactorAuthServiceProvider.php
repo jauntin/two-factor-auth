@@ -43,6 +43,7 @@ final class TwoFactorAuthServiceProvider extends ServiceProvider
                 $container['config']['two-factor-auth.pattern'],
                 $container['config']['two-factor-auth.expire'],
                 $container['config']['two-factor-auth.throttle'],
+                $container['config']['two-factor-auth.max_attempts'],
             );
         });
     }
