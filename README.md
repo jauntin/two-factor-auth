@@ -1,4 +1,4 @@
-# Saving quote package
+# Two-factor auth package
 
 Send two factor verification codes for Jauntin projects
 
@@ -130,7 +130,7 @@ return [
 
 ### Adding two factor provider to existing user
 
-To assign new two factor provider you can insert a new record inside `two_factro_user_providers` table, where
+To assign new two factor provider you can insert a new record inside `two_factor_user_providers` table, where
 - `user_id` is foreign key for `users.id` column
 - `provider` is a string that represents `Jauntin\TwoFactorAuth\Enums\TwoFactorType`
 
@@ -202,3 +202,45 @@ $broker = app(\Jauntin\TwoFactorAuth\TwoFactorBroker::class);
 
 $this->twoFactorBroker->deleteVerificationCode($user);
 ```
+
+## Development
+
+Constraints a change has to respect. Consumers (gatherguard, gbli-events,
+basicare-plus) require `^1.x`, so every minor release reaches them on their next
+`composer update`.
+
+### Compatibility
+
+- Supported ranges: PHP `>=8.3 <8.4`, Laravel `^10 || ^11 || ^12`. CI also runs
+  with `--prefer-lowest`, so code must work on the lowest allowed versions.
+- Consumers publish `two-factor-auth.php`, and `mergeConfigFrom` merges only the
+  top level. A new top-level key reaches them through the package default; a new
+  key nested under `defaults` or `providers` is hidden by their published copy.
+  Add new settings as top-level keys with defaults.
+- New constructor parameters get defaults, so the service provider stays the only
+  place that needs to know about them.
+
+### Migrations
+
+Package migrations load through `loadMigrationsFrom` and run in each consumer's
+normal `migrate`, against live tables (in gatherguard, the Helm migration job).
+Ship schema changes as a new additive migration, such as a new column with a
+default. Released migrations never change.
+
+### Verification codes
+
+- Every random choice in code generation uses `random_int()` (CSPRNG).
+- Codes are stored only as `Hasher` hashes. The plain code leaves the package only
+  through the mailable or the caller's `$callback`.
+- `two_factor_verification_codes` has no primary key. There is one row per
+  `user_id`, because `create()` deletes the old row before inserting. Queries
+  target rows by `user_id`.
+
+### Tests
+
+- The unit suites extend PHPUnit's `TestCase` and mock Eloquent models with
+  Mockery `overload:`/`alias:`. Those mocks replace the class for the whole PHP
+  process, so tests using real models run in a separate process or suite.
+- Database-backed tests use Orchestra Testbench with in-memory SQLite, register
+  `TwoFactorAuthServiceProvider`, and run the package migrations (same setup as
+  `jauntin/saving-quote`'s `tests/SavingQuoteTestCase.php`).
