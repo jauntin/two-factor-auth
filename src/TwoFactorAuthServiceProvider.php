@@ -73,6 +73,7 @@ final class TwoFactorAuthServiceProvider extends ServiceProvider
                 $container->make(VerificationCodeRepository::class),
                 $users,
                 $container->make(TwoFactorProviderContext::class),
+                $container['config']['two-factor-auth.credential_keys'],
             );
         });
     }
