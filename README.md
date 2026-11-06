@@ -223,6 +223,9 @@ $this->twoFactorBroker->deleteVerificationCode($user);
   fails, and the user restarts the login.
 - A verification request with a credential key other than `email` (or a non-string value) now
   gets HTTP 422, and `getUser()` ignores such keys.
+- The package's default mailable (`Jauntin\TwoFactorAuth\Notification\TwoFactorVerification`)
+  now sends. Before, it passed the message as a Blade view name and failed with
+  `View [...] not found`. Apps that configure their own `mailable` are unaffected.
 
 ## Development
 
