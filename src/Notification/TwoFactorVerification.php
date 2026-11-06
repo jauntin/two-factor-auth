@@ -29,7 +29,8 @@ class TwoFactorVerification extends Mailable implements TwoFactorMailable
     public function content(): Content
     {
         return new Content(
-            text: 'Your verification code: '.$this->verificationCode,
+            // `text:` takes a Blade view name; htmlString sends the body without a view
+            htmlString: e('Your verification code: '.$this->verificationCode),
         );
     }
 

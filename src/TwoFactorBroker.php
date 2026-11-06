@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorUserContract;
 use Jauntin\TwoFactorAuth\Enums\TwoFactorType;
@@ -18,10 +19,14 @@ use UnexpectedValueException;
 
 class TwoFactorBroker
 {
+    /**
+     * @param  list<string>  $credentialKeys  credential keys allowed to look up the user
+     */
     public function __construct(
         private readonly VerificationCodeRepository $codes,
         private readonly UserProvider $users,
         private readonly TwoFactorProviderContext $providers,
+        private readonly array $credentialKeys = ['email'],
     ) {}
 
     /**
@@ -56,12 +61,17 @@ class TwoFactorBroker
     }
 
     /**
-     * Get the user for the given credentials.
+     * Get the user for the given credentials. Only allow-listed keys with string values are used.
      *
-     * @param  array<string,string>  $credentials
+     * @param  array<array-key,mixed>  $credentials
      */
     public function getUser(array $credentials): (User&TwoFactorUserContract)|null
     {
+        $credentials = array_filter(Arr::only($credentials, $this->credentialKeys), is_string(...));
+        if ($credentials === []) {
+            return null;
+        }
+
         $user = $this->users->retrieveByCredentials($credentials);
 
         if ($user && ! $user instanceof User && ! $user instanceof TwoFactorUserContract) {
@@ -136,7 +146,8 @@ class TwoFactorBroker
     public function validateVerificationRequest(Request $request): User&TwoFactorUserContract
     {
         $params = $request->validate([
-            'credentials' => ['required', 'array'],
+            'credentials' => ['required', 'array:'.implode(',', $this->credentialKeys)],
+            'credentials.*' => ['required', 'string'],
             'verificationCode' => ['required', 'string'],
             'provider' => ['nullable', Rule::enum(TwoFactorType::class)],
         ]);

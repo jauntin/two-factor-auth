@@ -15,6 +15,7 @@ class VerificationCodeRepository
         private readonly string $pattern,
         private readonly int $expire = 5,
         private readonly int $throttle = 30,
+        private readonly int $maxAttempts = 10,
     ) {}
 
     /**
@@ -37,14 +38,36 @@ class VerificationCodeRepository
 
     /**
      * Determine if a verification code record exists and is valid.
+     *
+     * A wrong code counts as an attempt; the attempt that reaches the limit deletes the record.
      */
     public function exists(User&TwoFactorUserContract $user, string $code): bool
     {
-        $record = TwoFactorVerificationCode::where('user_id', $user->getAuthIdentifier())->first();
+        $userId = $user->getAuthIdentifier();
+        $record = TwoFactorVerificationCode::where('user_id', $userId)->first();
 
-        return $record &&
-            ! $this->codeExpired($record->created_at) &&
-            $this->hasher->check($code, $record->code);
+        if (! $record || $this->codeExpired($record->created_at)) {
+            return false;
+        }
+
+        // Race guard: a record left at the limit by concurrent wrong attempts is dead.
+        // ponytail: wrong guesses that all read the record before the first delete are still each checked; fine at this scale
+        if ($record->attempts >= $this->attemptLimit()) {
+            $this->delete($user);
+
+            return false;
+        }
+
+        if ($this->hasher->check($code, $record->code)) {
+            return true;
+        }
+
+        TwoFactorVerificationCode::where('user_id', $userId)->increment('attempts');
+        TwoFactorVerificationCode::where('user_id', $userId)
+            ->where('attempts', '>=', $this->attemptLimit())
+            ->delete();
+
+        return false;
     }
 
     /**
@@ -56,7 +79,16 @@ class VerificationCodeRepository
 
         return TwoFactorVerificationCode::where('user_id', $user->getAuthIdentifier())
             ->where('created_at', '>=', $expiredAt)
+            ->where('attempts', '<', $this->attemptLimit())
             ->exists();
+    }
+
+    /**
+     * Wrong attempts allowed per code. Values below 1 act as 1.
+     */
+    private function attemptLimit(): int
+    {
+        return max(1, $this->maxAttempts);
     }
 
     /**

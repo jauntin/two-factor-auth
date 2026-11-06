@@ -8,6 +8,7 @@ use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorUserContract;
 use Jauntin\TwoFactorAuth\Enums\TwoFactorType;
 use Jauntin\TwoFactorAuth\Exception\InvalidCredentialsException;
@@ -22,6 +23,7 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery\MockInterface;
 use Orchestra\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use UnexpectedValueException;
 
 class TwoFactorBrokerTest extends TestCase
@@ -472,5 +474,102 @@ class TwoFactorBrokerTest extends TestCase
         $broker = new TwoFactorBroker($codes, $userProvider, $context);
 
         $this->assertTrue($broker->existsNotExpired($user));
+    }
+
+    private function brokerWith(UserProvider $users, array $credentialKeys = ['email']): TwoFactorBroker
+    {
+        return new TwoFactorBroker(
+            Mockery::mock(VerificationCodeRepository::class),
+            $users,
+            Mockery::mock(TwoFactorProviderContext::class),
+            $credentialKeys,
+        );
+    }
+
+    public function test_validate_verification_request_accepts_a_valid_payload_with_real_validation(): void
+    {
+        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+        $user->shouldReceive('getDefaultTwoFactorProvider')->andReturn(TwoFactorType::EMAIL);
+        $request = Request::create('/verify', 'POST', [
+            'credentials' => ['email' => 'user@example.com'],
+            'verificationCode' => '123456',
+            'provider' => 'email',
+        ]);
+        $users = Mockery::mock(UserProvider::class);
+        $users->expects('retrieveByCredentials')->with(['email' => 'user@example.com'])->andReturn($user);
+        $context = Mockery::mock(TwoFactorProviderContext::class, function (TwoFactorProviderContext&MockInterface $context) {
+            $twoFactorProvider = Mockery::mock(TwoFactorProviderInterface::class);
+            $twoFactorProvider->expects('validateVerificationCode')->with(Mockery::type(TwoFactorUserContract::class), '123456')->andReturnTrue();
+            $context->expects('provider')->with(TwoFactorType::EMAIL)->andReturn($twoFactorProvider);
+        });
+
+        $broker = new TwoFactorBroker(Mockery::mock(VerificationCodeRepository::class), $users, $context);
+
+        $this->assertSame($user, $broker->validateVerificationRequest($request));
+    }
+
+    #[DataProvider('badCredentials')]
+    public function test_validate_verification_request_rejects_bad_credentials(array $credentials): void
+    {
+        $this->expectException(ValidationException::class);
+        $request = Request::create('/verify', 'POST', ['credentials' => $credentials, 'verificationCode' => '123456']);
+        $users = Mockery::mock(UserProvider::class);
+        $users->shouldNotReceive('retrieveByCredentials');
+
+        $this->brokerWith($users)->validateVerificationRequest($request);
+    }
+
+    public static function badCredentials(): array
+    {
+        return [
+            'unknown key' => [['email' => 'user@example.com', 'id' => '1']],
+            'only an unknown key' => [['id' => '1']],
+            'array value' => [['email' => ['user@example.com']]],
+            'integer value' => [['email' => 1]],
+            'list' => [['user@example.com']],
+        ];
+    }
+
+    public function test_get_user_ignores_keys_outside_the_allow_list(): void
+    {
+        $users = Mockery::mock(UserProvider::class);
+        $users->shouldNotReceive('retrieveByCredentials');
+
+        $this->assertNull($this->brokerWith($users)->getUser(['id' => 1]));
+    }
+
+    public function test_get_user_passes_only_allowed_string_credentials(): void
+    {
+        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+        $users = Mockery::mock(UserProvider::class);
+        $users->expects('retrieveByCredentials')->with(['email' => 'user@example.com'])->andReturn($user);
+
+        $this->assertSame($user, $this->brokerWith($users)->getUser(['email' => 'user@example.com', 'id' => '1']));
+    }
+
+    public function test_get_user_drops_non_string_values(): void
+    {
+        $users = Mockery::mock(UserProvider::class);
+        $users->shouldNotReceive('retrieveByCredentials');
+
+        $this->assertNull($this->brokerWith($users)->getUser(['email' => ['user@example.com']]));
+    }
+
+    public function test_send_verification_code_with_disallowed_credentials_throws_invalid_credentials(): void
+    {
+        $this->expectException(InvalidCredentialsException::class);
+        $users = Mockery::mock(UserProvider::class);
+        $users->shouldNotReceive('retrieveByCredentials');
+
+        $this->brokerWith($users)->sendVerificationCode(['id' => 1]);
+    }
+
+    public function test_credential_keys_are_configurable(): void
+    {
+        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
+        $users = Mockery::mock(UserProvider::class);
+        $users->expects('retrieveByCredentials')->with(['username' => 'bob'])->andReturn($user);
+
+        $this->assertSame($user, $this->brokerWith($users, ['username'])->getUser(['username' => 'bob', 'email' => 'x']));
     }
 }

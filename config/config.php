@@ -9,6 +9,8 @@ return [
     'expire' => 5, // code expiration time in minutes
     'throttle' => 30, // time in seconds before user can request another code
     'pattern' => '[0-9]{6}', // regex pattern of generated verification code
+    'max_attempts' => 10, // wrong attempts allowed per code; the last one deletes it (values below 1 act as 1)
+    'credential_keys' => ['email'], // credentials keys allowed to look up the user
     'providers' => [
         'email' => [
             'mailable' => TwoFactorVerification::class, // Class name of the mailable to send for verification

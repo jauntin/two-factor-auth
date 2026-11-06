@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property string $provider
  * @property string $code
+ * @property int $attempts
  * @property Carbon $created_at
  * @property-read User|null $user
  *
@@ -42,6 +43,7 @@ class TwoFactorVerificationCode extends Model
     /** @var array<string, string> */
     protected $casts = [
         'created_at' => 'datetime',
+        'attempts' => 'integer',
     ];
 
     /**

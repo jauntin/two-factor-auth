@@ -4,188 +4,189 @@ namespace Tests\Unit;
 
 use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Foundation\Auth\User;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
 use Jauntin\TwoFactorAuth\Contracts\TwoFactorUserContract;
 use Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode;
 use Jauntin\TwoFactorAuth\VerificationCodeRepository;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
-use PHPUnit\Framework\TestCase;
+use Tests\DatabaseTestCase;
 
-class VerificationCodeRepositoryTest extends TestCase
+class VerificationCodeRepositoryTest extends DatabaseTestCase
 {
     use MockeryPHPUnitIntegration;
 
-    public function test_create_verification_code_success()
+    private function user(int $id = 1): User&TwoFactorUserContract
     {
         $user = Mockery::mock(User::class, TwoFactorUserContract::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+        $user->shouldReceive('getAuthIdentifier')->andReturn($id);
 
-        // Mock the TwoFactorVerificationCode model to avoid database calls
-        $twoFactorCode = Mockery::mock('overload:'.TwoFactorVerificationCode::class);
-        $twoFactorCode->shouldReceive('save')->once();
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldReceive('make')->with('123456')->andReturn(Str::random());
-
-        // Mock deleteExisting to ensure it's called
-        $repository = Mockery::mock(VerificationCodeRepository::class, [$hasher, '^[0-9]{6}$', 5, 30])->makePartial();
-        $repository->shouldAllowMockingProtectedMethods();
-        $repository->shouldReceive('delete')->with($user)->once();
-
-        // Mock generateVerificationCode
-        $repository->shouldReceive('generateVerificationCode')->andReturn('123456');
-
-        $verificationCode = $repository->create($user);
-
-        $this->assertEquals('123456', $verificationCode);
+        return $user;
     }
 
-    public function test_verification_code_exists_success()
+    private function codes(): VerificationCodeRepository
     {
-        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-
-        $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
-        $twoFactorCode->created_at = Carbon::now()->subMinute();
-        $twoFactorCode->code = $code = Str::random();
-        $twoFactorCode->shouldReceive('where')
-            ->with('user_id', 1)
-            ->andReturnSelf();
-        $twoFactorCode->shouldReceive('first')
-            ->once()
-            ->andReturnSelf();
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldReceive('check')->with('123456', $code)->andReturnTrue();
-
-        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
-
-        $exists = $repository->exists($user, '123456');
-
-        $this->assertTrue($exists);
+        return $this->app->make(VerificationCodeRepository::class);
     }
 
-    public function test_verification_code_does_not_exist()
+    private function row(int $userId = 1): ?TwoFactorVerificationCode
     {
-        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-
-        $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
-        $twoFactorCode->shouldReceive('where')
-            ->with('user_id', 1)
-            ->andReturnSelf();
-        $twoFactorCode->shouldReceive('first')
-            ->once()
-            ->andReturnNull();
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldNotReceive('check');
-
-        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
-
-        $exists = $repository->exists($user, '123456');
-
-        $this->assertFalse($exists);
+        return TwoFactorVerificationCode::where('user_id', $userId)->first();
     }
 
-    public function test_recently_created_code_success()
+    private function guessWrong(User&TwoFactorUserContract $user, int $times): void
     {
-        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-
-        $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
-        $twoFactorCode->created_at = Carbon::now()->subSeconds(10);
-        $twoFactorCode->code = hash_hmac('sha256', '123456', 'test_hash_key');
-        $twoFactorCode->shouldReceive('where')
-            ->with('user_id', 1)
-            ->andReturnSelf();
-        $twoFactorCode->shouldReceive('first')
-            ->once()
-            ->andReturnSelf();
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldNotReceive('check');
-
-        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$', 5, 30);
-
-        $recentlyCreated = $repository->recentlyCreatedCode($user);
-
-        $this->assertTrue($recentlyCreated);
+        for ($i = 0; $i < $times; $i++) {
+            $this->assertFalse($this->codes()->exists($user, 'wrong'));
+        }
     }
 
-    public function test_exists_not_expired()
+    public function test_create_stores_only_a_hash_of_a_code_matching_the_pattern(): void
     {
-        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
+        $code = $this->codes()->create($this->user());
 
-        $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
-        $twoFactorCode->created_at = Carbon::now()->subSeconds(10);
-        $twoFactorCode->code = hash_hmac('sha256', '123456', 'test_hash_key');
-        $twoFactorCode->shouldReceive('where')
-            ->with('user_id', 1)
-            ->andReturnSelf();
-        $twoFactorCode->shouldReceive('where')
-            ->with('created_at', '>=', Mockery::type(Carbon::class))
-            ->andReturnSelf();
-        $twoFactorCode->shouldReceive('exists')
-            ->once()
-            ->andReturnTrue();
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldNotReceive('check');
-
-        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$', 5, 30);
-
-        $existsNotExpired = $repository->existsNotExpired($user);
-
-        $this->assertTrue($existsNotExpired);
+        $this->assertMatchesRegularExpression('/^[0-9]{6}$/', $code);
+        $this->assertNotSame($code, $this->row()->code);
+        $this->assertTrue(Hash::check($code, $this->row()->code));
     }
 
-    public function test_delete_expired_verification_codes_success()
+    public function test_verification_code_exists(): void
     {
-        $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
-        $twoFactorCode->shouldReceive('where')
-            ->with('created_at', '<', Mockery::type(Carbon::class))
-            ->andReturnSelf();
-        $twoFactorCode->shouldReceive('delete')
-            ->once()
-            ->andReturnTrue();
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldNotReceive('check');
+        $user = $this->user();
+        $code = $this->codes()->create($user);
 
-        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$', 5, 30);
-
-        $repository->deleteExpired();
-
-        $this->assertTrue(true);  // If no exceptions occur, the test is successful
+        $this->assertTrue($this->codes()->exists($user, $code));
     }
 
-    public function test_delete_success()
+    public function test_verification_code_does_not_exist(): void
     {
-        $user = Mockery::mock(User::class, TwoFactorUserContract::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-
-        $twoFactorCode = Mockery::mock('alias:Jauntin\TwoFactorAuth\Models\TwoFactorVerificationCode');
-        $twoFactorCode->shouldReceive('where')
-            ->with('user_id', 1)
-            ->andReturnSelf();
-        $twoFactorCode->shouldReceive('delete')
-            ->once()
-            ->andReturnTrue();
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldNotReceive('check');
-
-        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
-        $deleted = $repository->delete($user);
-
-        $this->assertEquals(1, $deleted);
+        $this->assertFalse($this->codes()->exists($this->user(), '123456'));
     }
 
-    public function test_generate_verification_code()
+    public function test_recently_created_code(): void
     {
-        $hasher = Mockery::mock(Hasher::class);
-        $hasher->shouldNotReceive('check');
-        $repository = new VerificationCodeRepository($hasher, '^[0-9]{6}$');
+        $user = $this->user();
+        $this->codes()->create($user);
 
-        $verificationCode = $repository->generateVerificationCode();
+        $this->assertTrue($this->codes()->recentlyCreatedCode($user));
+        $this->travel(31)->seconds();
+        $this->assertFalse($this->codes()->recentlyCreatedCode($user));
+    }
 
-        $this->assertMatchesRegularExpression('/^[0-9]{6}$/', $verificationCode);
+    public function test_exists_not_expired(): void
+    {
+        $user = $this->user();
+        $this->codes()->create($user);
+
+        $this->assertTrue($this->codes()->existsNotExpired($user));
+        $this->travel(6)->minutes();
+        $this->assertFalse($this->codes()->existsNotExpired($user));
+    }
+
+    public function test_delete_expired_verification_codes(): void
+    {
+        $this->codes()->create($this->user(1));
+        $this->travel(6)->minutes();
+        $this->codes()->create($this->user(2));
+
+        $this->codes()->deleteExpired();
+
+        $this->assertNull($this->row(1));
+        $this->assertNotNull($this->row(2));
+    }
+
+    public function test_delete(): void
+    {
+        $user = $this->user();
+        $this->codes()->create($user);
+
+        $this->codes()->delete($user);
+
+        $this->assertNull($this->row());
+    }
+
+    public function test_generate_verification_code(): void
+    {
+        $this->assertMatchesRegularExpression('/^[0-9]{6}$/', $this->codes()->generateVerificationCode());
+    }
+
+    public function test_create_starts_at_zero_attempts(): void
+    {
+        $user = $this->user();
+        $this->codes()->create($user);
+        $this->assertSame(0, $this->row()->attempts);
+
+        $this->guessWrong($user, 3);
+        $this->codes()->create($user);
+
+        $this->assertSame(0, $this->row()->attempts);
+    }
+
+    public function test_right_code_is_accepted_after_nine_wrong_attempts(): void
+    {
+        $user = $this->user();
+        $code = $this->codes()->create($user);
+
+        $this->guessWrong($user, 9);
+
+        $this->assertTrue($this->codes()->exists($user, $code));
+        $this->assertSame(9, $this->row()->attempts);
+    }
+
+    public function test_tenth_wrong_attempt_deletes_the_code(): void
+    {
+        $user = $this->user();
+        $code = $this->codes()->create($user);
+
+        $this->guessWrong($user, 10);
+
+        $this->assertNull($this->row());
+        $this->assertFalse($this->codes()->exists($user, $code));
+        $this->assertFalse($this->codes()->existsNotExpired($user));
+    }
+
+    public function test_expired_code_does_not_count_attempts(): void
+    {
+        $user = $this->user();
+        $this->codes()->create($user);
+        $this->travel(6)->minutes();
+
+        $this->guessWrong($user, 1);
+
+        $this->assertSame(0, $this->row()->attempts);
+    }
+
+    public function test_code_left_at_the_limit_is_rejected_and_deleted(): void
+    {
+        $user = $this->user();
+        $code = $this->codes()->create($user);
+        TwoFactorVerificationCode::where('user_id', 1)->update(['attempts' => 10]);
+
+        $this->assertFalse($this->codes()->existsNotExpired($user));
+        $this->assertFalse($this->codes()->exists($user, $code));
+        $this->assertNull($this->row());
+    }
+
+    public function test_wrong_attempts_do_not_touch_another_users_code(): void
+    {
+        $this->codes()->create($this->user(1));
+        $code2 = $this->codes()->create($this->user(2));
+
+        $this->guessWrong($this->user(1), 10);
+
+        $this->assertNull($this->row(1));
+        $this->assertSame(0, $this->row(2)->attempts);
+        $this->assertTrue($this->codes()->exists($this->user(2), $code2));
+    }
+
+    public function test_max_attempts_below_one_acts_as_one(): void
+    {
+        $codes = new VerificationCodeRepository($this->app->make(Hasher::class), '[0-9]{6}', maxAttempts: 0);
+        $user = $this->user();
+        $code = $codes->create($user);
+
+        $this->assertTrue($codes->exists($user, $code));
+        $this->assertFalse($codes->exists($user, 'wrong'));
+        $this->assertNull($this->row());
     }
 }
