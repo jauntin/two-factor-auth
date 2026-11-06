@@ -24,6 +24,5 @@ abstract class DatabaseTestCase extends TestCase
             'database' => ':memory:',
             'prefix' => '',
         ]);
-        $app['config']->set('hashing.bcrypt.rounds', 4);
     }
 }
