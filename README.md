@@ -213,6 +213,12 @@ $broker = app(\Jauntin\TwoFactorAuth\TwoFactorBroker::class);
 $this->twoFactorBroker->deleteVerificationCode($user);
 ```
 
+## Upgrading to 1.5.0
+
+- Adds Laravel 13 and PHP 8.4 and 8.5 (`php: ^8.3`). No code, config, or migration change.
+- Drops Laravel 10 and 11. Apps on those versions stay on 1.4.x; Composer doesn't install
+  1.5.0 for them.
+
 ## Upgrading to 1.4.0
 
 - A new package migration adds `attempts` to `two_factor_verification_codes`. It runs with the
@@ -235,8 +241,9 @@ basicare-plus) require `^1.x`, so every minor release reaches them on their next
 
 ### Compatibility
 
-- Supported ranges: PHP `>=8.3 <8.4`, Laravel `^10 || ^11 || ^12`. CI also runs
-  with `--prefer-lowest`, so code must work on the lowest allowed versions.
+- Supported ranges: PHP `^8.3`, Laravel `^12 || ^13`. CI tests PHP 8.3 and 8.5
+  against both, also with `--prefer-lowest`, so code must work on the lowest
+  allowed versions.
 - Consumers publish `two-factor-auth.php`, and `mergeConfigFrom` merges only the
   top level. A new top-level key reaches them through the package default; a new
   key nested under `defaults` or `providers` is hidden by their published copy.
