@@ -17,14 +17,14 @@
   ],
   "homepage": "https://github.com/jauntin/two-factor-auth",
   "require": {
-    "php": ">=8.3 <8.4",
-    "laravel/framework": "^10.0 || ^11.0 || ^12.0"
+    "php": "^8.3",
+    "laravel/framework": "^12.0 || ^13.0"
   },
   "require-dev": {
-    "larastan/larastan": "^2.9.7 || ^3.2",
+    "larastan/larastan": "^3.9.3",
     "laravel/pint": "^1.21.2",
-    "orchestra/testbench": "^8.34 || ^9 || ^10.1",
-    "phpunit/phpunit": "^10.5.45 || ^11.5.14"
+    "orchestra/testbench": "^10.1 || ^11.0",
+    "phpunit/phpunit": "^11.5.14 || ^12.5.8"
   },
   "autoload": {
     "psr-4": {
